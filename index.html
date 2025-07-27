@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Audio to Video Converter</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 50px auto; text-align: center; }
+        .upload-box { border: 2px dashed #ccc; padding: 40px; margin: 20px 0; }
+        #status { font-weight: bold; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Audio to Video Converter</h1>
+    <p>Select your audio and image file. The conversion will happen on our server.</p>
+
+    <div class="upload-box">
+        <label for="audioFile">1. Select Audio File (.mp3):</label><br>
+        <input type="file" id="audioFile" accept="audio/mpeg"><br><br>
+
+        <label for="imageFile">2. Select Cover Image (.png, .jpg):</label><br>
+        <input type="file" id="imageFile" accept="image/png, image/jpeg">
+    </div>
+
+    <button id="createButton">Create Video</button>
+
+    <div id="status"></div>
+    <div id="result"></div>
+
+    <script>
+        const n8nWebhookUrl = 'https://VOTRE-URL-DE-WEBHOOK-NGROK-OU-CLOUD.com/webhook/...'; // <-- À REMPLACER
+
+        const createButton = document.getElementById('createButton');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+
+        createButton.addEventListener('click', async () => {
+            const audio = document.getElementById('audioFile').files[0];
+            const image = document.getElementById('imageFile').files[0];
+
+            if (!audio || !image) {
+                statusDiv.innerText = 'Please select both an audio and an image file.';
+                return;
+            }
+
+            statusDiv.innerText = 'Uploading files...';
+            resultDiv.innerHTML = ''; // Clear previous results
+
+            // On utilise FormData pour envoyer les fichiers
+            const formData = new FormData();
+            formData.append('audio', audio);
+            formData.append('image', image);
+
+            try {
+                // On envoie les fichiers au webhook n8n
+                const response = await fetch(n8nWebhookUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Server error during processing.');
+                }
+
+                statusDiv.innerText = 'Conversion successful! Downloading video...';
+
+                // On reçoit le fichier vidéo directement en réponse
+                const videoBlob = await response.blob();
+                const videoUrl = URL.createObjectURL(videoBlob);
+
+                // On crée un lien de téléchargement
+                const downloadLink = document.createElement('a');
+                downloadLink.href = videoUrl;
+                downloadLink.download = audio.name.replace(/\.[^/.]+$/, '.mp4'); // Nomme le mp4 comme l'audio
+                downloadLink.innerText = 'Click here to download your video';
+                
+                resultDiv.appendChild(downloadLink);
+                statusDiv.innerText = 'Your video is ready!';
+
+            } catch (error) {
+                statusDiv.innerText = 'An error occurred: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
