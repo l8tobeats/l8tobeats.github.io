@@ -1,65 +1,86 @@
-<script>
-    // Mettez bien votre URL de production ngrok + webhook ici !
-const n8nWebhookUrl = 'https://cors-anywhere.herokuapp.com/https://155e1ec42649.ngrok-free.app/webhook/4ff7a4c1-bf00-42d0-acb4-11c8cb26d5dc';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Audio to Video Converter</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 50px auto; text-align: center; }
+        .upload-box { border: 2px dashed #ccc; padding: 40px; margin: 20px 0; }
+        #status { font-weight: bold; margin-top: 20px; }
+        #result a { display: inline-block; margin-top: 10px; padding: 10px 15px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Audio to Video Converter</h1>
+    <p>Select your audio and image file. The conversion will happen on our server.</p>
 
-    const createButton = document.getElementById('createButton');
-    const statusDiv = document.getElementById('status');
-    const resultDiv = document.getElementById('result');
+    <div class="upload-box">
+        <label for="audioFile">1. Select Audio File (.mp3):</label><br>
+        <input type="file" id="audioFile" accept="audio/mpeg"><br><br>
 
-    createButton.addEventListener('click', async () => {
-        const audioFile = document.getElementById('audioFile').files[0];
-        const imageFile = document.getElementById('imageFile').files[0];
+        <label for="imageFile">2. Select Cover Image (.png, .jpg):</label><br>
+        <input type="file" id="imageFile" accept="image/png, image/jpeg">
+    </div>
 
-        if (!audioFile || !imageFile) {
-            statusDiv.innerText = '⚠️ Please select both an audio and an image file.';
-            return;
-        }
+    <button id="createButton">Create Video</button>
 
-        createButton.disabled = true;
-        statusDiv.innerText = 'Uploading and processing... This can take a few moments.';
-        resultDiv.innerHTML = '';
+    <div id="status"></div>
+    <div id="result"></div>
 
-        const formData = new FormData();
-        formData.append('files0', audioFile);
-        formData.append('files1', imageFile);
+    <script>
+        const n8nWebhookUrl = 'https://cors-anywhere.herokuapp.com/https://155e1ec42649.ngrok-free.app/webhook/4ff7a4c1-bf00-42d0-acb4-11c8cb26d5dc';
 
-        try {
-            const response = await fetch(n8nWebhookUrl, {
-                method: 'POST',
-                body: formData
-            });
+        const createButton = document.getElementById('createButton');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
 
-            if (!response.ok) {
-                // Essayer de lire l'erreur renvoyée par n8n
-                const errorText = await response.text();
-                throw new Error(`Server error (${response.status}): ${errorText}`);
+        createButton.addEventListener('click', async () => {
+            const audioFile = document.getElementById('audioFile').files[0];
+            const imageFile = document.getElementById('imageFile').files[0];
+
+            if (!audioFile || !imageFile) {
+                statusDiv.innerText = '⚠️ Please select both an audio and an image file.';
+                return;
             }
-            
-            statusDiv.innerText = '✅ Conversion successful! Preparing download...';
 
-            // === LA PARTIE MAGIQUE EST ICI ===
-            // 1. On reçoit la réponse comme un fichier binaire (Blob)
-            const videoBlob = await response.blob();
-            
-            // 2. On crée une URL temporaire dans le navigateur pour ce fichier
-            const videoUrl = URL.createObjectURL(videoBlob);
+            createButton.disabled = true;
+            statusDiv.innerText = 'Uploading and processing... This can take a few moments.';
+            resultDiv.innerHTML = '';
 
-            // 3. On crée un lien de téléchargement invisible et on le configure
-            const downloadLink = document.createElement('a');
-            downloadLink.href = videoUrl;
-            // On nomme le fichier de sortie comme le fichier audio, mais en .mp4
-            downloadLink.download = audioFile.name.replace(/\.[^/.]+$/, '.mp4');
-            downloadLink.innerText = '⬇️ Download Your Video';
-            
-            // 4. On ajoute le lien visible à la page
-            resultDiv.appendChild(downloadLink);
-            statusDiv.innerText = 'Your video is ready!';
+            const formData = new FormData();
+            formData.append('files0', audioFile);
+            formData.append('files1', imageFile);
 
-        } catch (error) {
-            statusDiv.innerText = '❌ An error occurred. Please check the files and try again.';
-            console.error(error); // Affiche l'erreur détaillée dans la console (F12)
-        } finally {
-            createButton.disabled = false;
-        }
-    });
-</script>
+            try {
+                const response = await fetch(n8nWebhookUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error (${response.status}): ${errorText}`);
+                }
+                
+                statusDiv.innerText = '✅ Conversion successful! Preparing download...';
+
+                const videoBlob = await response.blob();
+                const videoUrl = URL.createObjectURL(videoBlob);
+                const downloadLink = document.createElement('a');
+                downloadLink.href = videoUrl;
+                downloadLink.download = audioFile.name.replace(/\.[^/.]+$/, '.mp4');
+                downloadLink.innerText = '⬇️ Download Your Video';
+                
+                resultDiv.appendChild(downloadLink);
+                statusDiv.innerText = 'Your video is ready!';
+
+            } catch (error) {
+                statusDiv.innerText = '❌ An error occurred. Please try again.';
+                console.error(error);
+            } finally {
+                createButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
