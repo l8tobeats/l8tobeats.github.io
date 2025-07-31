@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <title>Audio to Video Converter</title>
+    <!-- On ajoute cette ligne pour que FFmpeg.wasm fonctionne -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
     <style>
         body { font-family: sans-serif; max-width: 600px; margin: 50px auto; text-align: center; }
         .upload-box { border: 2px dashed #ccc; padding: 40px; margin: 20px 0; }
-        #status { font-weight: bold; margin-top: 20px; }
+        #status { font-weight: bold; margin-top: 20px; min-height: 25px; }
         #result a { display: inline-block; margin-top: 10px; padding: 10px 15px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; }
+        progress { width: 100%; margin-top: 10px; }
     </style>
 </head>
 <body>
     <h1>Audio to Video Converter</h1>
-    <p>Select your audio and image file. The conversion will happen online and your video will be ready to download.</p>
+    <p>Convert your audio and image into a video, right in your browser. Your files never leave your computer.</p>
 
     <div class="upload-box">
         <label for="audioFile">1. Select Audio File (.mp3):</label><br>
@@ -25,15 +28,23 @@
     <button id="createButton">Create Video</button>
 
     <div id="status"></div>
+    <progress id="progressBar" value="0" max="100" style="display: none;"></progress>
     <div id="result"></div>
 
     <script>
-        // Votre URL de production n8n Cloud, propre et définitive
-        const n8nWebhookUrl = 'https://diezeprodia.app.n8n.cloud/webhook/085087bb-25a4-44f7-ba7b-c348ef2dca75';
+        const { FFmpeg } = FFmpegWASM;
+        let ffmpeg;
 
         const createButton = document.getElementById('createButton');
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
+        const progressBar = document.getElementById('progressBar');
+        
+        // Fonction pour lire un fichier du formulaire en mémoire
+        const fetchFile = async (file) => {
+            const data = await file.arrayBuffer();
+            return new Uint8Array(data);
+        };
 
         createButton.addEventListener('click', async () => {
             const audioFile = document.getElementById('audioFile').files[0];
@@ -45,42 +56,66 @@
             }
 
             createButton.disabled = true;
-            statusDiv.innerText = 'Uploading and processing... This can take a few moments.';
+            statusDiv.innerText = 'Loading conversion engine... (this may take a moment the first time)';
             resultDiv.innerHTML = '';
+            progressBar.style.display = 'none';
 
-            const formData = new FormData();
-            formData.append('files0', audioFile);
-            formData.append('files1', imageFile);
-
-            try {
-                const response = await fetch(n8nWebhookUrl, {
-                    method: 'POST',
-                    body: formData
+            // Initialiser FFmpeg si ce n'est pas déjà fait
+            if (!ffmpeg) {
+                ffmpeg = new FFmpeg();
+                await ffmpeg.load({
+                    coreURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js"
                 });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Server error (${response.status}): ${errorText}`);
-                }
-                
-                statusDiv.innerText = '✅ Conversion successful! Preparing download...';
-
-                const videoBlob = await response.blob();
-                const videoUrl = URL.createObjectURL(videoBlob);
-                const downloadLink = document.createElement('a');
-                downloadLink.href = videoUrl;
-                downloadLink.download = audioFile.name.replace(/\.[^/.]+$/, '.mp4');
-                downloadLink.innerText = '⬇️ Download Your Video';
-                
-                resultDiv.appendChild(downloadLink);
-                statusDiv.innerText = 'Your video is ready!';
-
-            } catch (error) {
-                statusDiv.innerText = '❌ An error occurred. Please try again.';
-                console.error(error);
-            } finally {
-                createButton.disabled = false;
             }
+
+            // Afficher la barre de progression
+            ffmpeg.on('progress', ({ progress }) => {
+                progressBar.style.display = 'block';
+                progressBar.value = progress * 100;
+                statusDiv.innerText = `Processing... ${Math.round(progress * 100)}%`;
+            });
+            
+            // Lire les fichiers de l'utilisateur
+            statusDiv.innerText = 'Reading your files...';
+            const audioData = await fetchFile(audioFile);
+            const imageData = await fetchFile(imageFile);
+
+            // Écrire les fichiers dans la mémoire virtuelle de FFmpeg
+            await ffmpeg.writeFile('image.png', imageData);
+            await ffmpeg.writeFile('audio.mp3', audioData);
+            
+            statusDiv.innerText = 'Starting conversion... This may take a while.';
+
+            // Exécuter la commande FFmpeg !
+            await ffmpeg.exec([
+                '-loop', '1',
+                '-i', 'image.png',
+                '-i', 'audio.mp3',
+                '-c:v', 'libx264',
+                '-tune', 'stillimage',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-pix_fmt', 'yuv420p',
+                '-shortest',
+                'output.mp4'
+            ]);
+            
+            statusDiv.innerText = '✅ Conversion successful! Preparing download...';
+            
+            // Lire le fichier de sortie de la mémoire virtuelle
+            const outputData = await ffmpeg.readFile('output.mp4');
+
+            // Créer le lien de téléchargement
+            const videoUrl = URL.createObjectURL(new Blob([outputData.buffer], { type: 'video/mp4' }));
+            const downloadLink = document.createElement('a');
+            downloadLink.href = videoUrl;
+            downloadLink.download = audioFile.name.replace(/\.[^/.]+$/, '.mp4');
+            downloadLink.innerText = '⬇️ Download Your Video';
+            
+            resultDiv.appendChild(downloadLink);
+            statusDiv.innerText = 'Your video is ready!';
+
+            createButton.disabled = false;
         });
     </script>
 </body>
