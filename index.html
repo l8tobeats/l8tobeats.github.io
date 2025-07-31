@@ -12,7 +12,7 @@
 </head>
 <body>
     <h1>Audio to Video Converter</h1>
-    <p>Select your audio and image file. The conversion will happen on our server.</p>
+    <p>Select your audio and image file. The conversion will happen online and your video will be ready to download.</p>
 
     <div class="upload-box">
         <label for="audioFile">1. Select Audio File (.mp3):</label><br>
@@ -28,7 +28,9 @@
     <div id="result"></div>
 
     <script>
-const n8nWebhookUrl = 'https://155e1ec42649.ngrok-free.app/webhook/4ff7a4c1-bf00-42d0-acb4-11c8cb26d5dc';
+        // Votre URL de production n8n Cloud, propre et définitive
+        const n8nWebhookUrl = 'https://diezeprodia.app.n8n.cloud/webhook/085087bb-25a4-44f7-ba7b-c348ef2dca75';
+
         const createButton = document.getElementById('createButton');
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
@@ -82,4 +84,4 @@ const n8nWebhookUrl = 'https://155e1ec42649.ngrok-free.app/webhook/4ff7a4c1-bf00
         });
     </script>
 </body>
-</html> 
+</html>
