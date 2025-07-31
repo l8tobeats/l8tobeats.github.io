@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Audio to Video Converter</title>
-    <!-- On ajoute cette ligne pour que FFmpeg.wasm fonctionne -->
+    <!-- On change la façon d'importer la librairie -->
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
     <style>
         body { font-family: sans-serif; max-width: 600px; margin: 50px auto; text-align: center; }
@@ -40,11 +40,7 @@
         const resultDiv = document.getElementById('result');
         const progressBar = document.getElementById('progressBar');
         
-        // Fonction pour lire un fichier du formulaire en mémoire
-        const fetchFile = async (file) => {
-            const data = await file.arrayBuffer();
-            return new Uint8Array(data);
-        };
+        const fetchFile = async (file) => new Uint8Array(await file.arrayBuffer());
 
         createButton.addEventListener('click', async () => {
             const audioFile = document.getElementById('audioFile').files[0];
@@ -56,65 +52,53 @@
             }
 
             createButton.disabled = true;
-            statusDiv.innerText = 'Loading conversion engine... (this may take a moment the first time)';
+            statusDiv.innerText = 'Loading conversion engine...';
             resultDiv.innerHTML = '';
             progressBar.style.display = 'none';
 
-            // Initialiser FFmpeg si ce n'est pas déjà fait
             if (!ffmpeg) {
                 ffmpeg = new FFmpeg();
+
+                // LA MAGIE EST ICI : On charge le "worker" d'une manière qui contourne le problème de sécurité
+                const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
                 await ffmpeg.load({
-                    coreURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js"
+                    coreURL: `${baseURL}/ffmpeg-core.js`,
+                    wasmURL: `${baseURL}/ffmpeg-core.wasm`,
                 });
             }
 
-            // Afficher la barre de progression
             ffmpeg.on('progress', ({ progress }) => {
                 progressBar.style.display = 'block';
                 progressBar.value = progress * 100;
                 statusDiv.innerText = `Processing... ${Math.round(progress * 100)}%`;
             });
             
-            // Lire les fichiers de l'utilisateur
             statusDiv.innerText = 'Reading your files...';
-            const audioData = await fetchFile(audioFile);
-            const imageData = await fetchFile(imageFile);
-
-            // Écrire les fichiers dans la mémoire virtuelle de FFmpeg
-            await ffmpeg.writeFile('image.png', imageData);
-            await ffmpeg.writeFile('audio.mp3', audioData);
+            await ffmpeg.writeFile('image.png', await fetchFile(imageFile));
+            await ffmpeg.writeFile('audio.mp3', await fetchFile(audioFile));
             
             statusDiv.innerText = 'Starting conversion... This may take a while.';
 
-            // Exécuter la commande FFmpeg !
             await ffmpeg.exec([
-                '-loop', '1',
-                '-i', 'image.png',
+                '-loop', '1', '-i', 'image.png',
                 '-i', 'audio.mp3',
-                '-c:v', 'libx264',
-                '-tune', 'stillimage',
-                '-c:a', 'aac',
-                '-b:a', '192k',
-                '-pix_fmt', 'yuv420p',
-                '-shortest',
+                '-c:v', 'libx264', '-tune', 'stillimage',
+                '-c:a', 'aac', '-b:a', '192k',
+                '-pix_fmt', 'yuv420p', '-shortest',
                 'output.mp4'
             ]);
             
-            statusDiv.innerText = '✅ Conversion successful! Preparing download...';
+            statusDiv.innerText = '✅ Conversion successful!';
             
-            // Lire le fichier de sortie de la mémoire virtuelle
             const outputData = await ffmpeg.readFile('output.mp4');
-
-            // Créer le lien de téléchargement
             const videoUrl = URL.createObjectURL(new Blob([outputData.buffer], { type: 'video/mp4' }));
+            
             const downloadLink = document.createElement('a');
             downloadLink.href = videoUrl;
             downloadLink.download = audioFile.name.replace(/\.[^/.]+$/, '.mp4');
             downloadLink.innerText = '⬇️ Download Your Video';
             
             resultDiv.appendChild(downloadLink);
-            statusDiv.innerText = 'Your video is ready!';
-
             createButton.disabled = false;
         });
     </script>
